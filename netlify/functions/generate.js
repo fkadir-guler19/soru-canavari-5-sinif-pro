@@ -1,6 +1,22 @@
 import { GoogleGenAI, Type } from '@google/genai';
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Content-Type': 'application/json'
+};
+
 export async function handler(event) {
+  // OPTIONS isteğine yanıt ver
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ ok: true })
+    };
+  }
+
   const startTime = Date.now();
   console.log('[generate] Handler started');
 
@@ -10,6 +26,7 @@ export async function handler(event) {
       console.error('[generate] CRITICAL: API_KEY is missing from environment!');
       return {
         statusCode: 500,
+        headers: CORS_HEADERS,
         body: JSON.stringify({ error: 'API_KEY çevre değişkeni ayarlanmamış.' })
       };
     }
@@ -22,6 +39,7 @@ export async function handler(event) {
       console.warn('[generate] Missing required fields');
       return {
         statusCode: 400,
+        headers: CORS_HEADERS,
         body: JSON.stringify({ error: 'Eksik parametreler: subject, unitName, topics, count gerekli.' })
       };
     }
@@ -94,7 +112,7 @@ Requirements:
 
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: CORS_HEADERS,
       body: JSON.stringify(result)
     };
 
@@ -114,7 +132,7 @@ Requirements:
 
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: CORS_HEADERS,
       body: JSON.stringify({ error: errorMsg })
     };
   }
