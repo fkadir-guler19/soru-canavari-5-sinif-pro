@@ -3,11 +3,6 @@
   functions = "netlify/functions"
   publish = "dist"
 
-[[functions]]
-  node_bundler = "esbuild"
-  timeout = 30
-  memory = 1024
-
 [env.production]
   [env.production.vars]
     VITE_API_BASE = "/.netlify/functions/generate"
