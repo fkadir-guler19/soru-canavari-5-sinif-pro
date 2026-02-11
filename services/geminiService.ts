@@ -1,60 +1,91 @@
+import { GoogleGenAI, Type } from "@google/genai";
 import { Question, SubjectType } from "../types";
 
 export const generateQuizQuestions = async (
-  subject: SubjectType,
-  unitName: string,
-  topics: string[],
+  subject: SubjectType, 
+  unitName: string, 
+  topics: string[], 
   difficulty: string,
   count: number
 ): Promise<Question[]> => {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 45000); // 45 saniye timeout
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error("Gemini API anahtarı çevre değişkeninde yapılandırılmamış.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+  
+  const prompt = `You are an expert Turkish 5th grade teacher. Create ${count} multiple choice questions.
+
+Subject: ${subject}
+Unit: ${unitName}
+Topics: ${Array.isArray(topics) ? topics.join(', ') : topics}
+Difficulty: ${difficulty}
+
+Requirements:
+- Each question MUST have exactly 4 options (A, B, C, D)
+- Return ONLY valid JSON array, no markdown or explanation outside JSON
+- Each item: {text, options: [A,B,C,D string array], correctAnswer: 0-3 integer, explanation}`;
 
   try {
-    const apiBase = (import.meta.env.VITE_API_BASE) || (import.meta.env.PROD ? '/.netlify/functions/generate' : '/api/generate');
-    console.log(`[generateQuizQuestions] API URL: ${apiBase}, Mode: ${import.meta.env.PROD ? 'production' : 'dev'}`);
-
-    const res = await fetch(apiBase, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subject, unitName, topics, difficulty, count }),
-      signal: controller.signal
+    console.log(`[generateQuizQuestions] Starting request for ${count} questions`);
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              text: { type: Type.STRING },
+              options: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+              correctAnswer: {
+                type: Type.INTEGER,
+              },
+              explanation: {
+                type: Type.STRING,
+              },
+            },
+            required: ["text", "options", "correctAnswer", "explanation"],
+          },
+        },
+      },
     });
 
-    clearTimeout(timeout);
-    console.log(`[generateQuizQuestions] Response status: ${res.status}`);
-
-    if (!res.ok) {
-      let errMsg = `HTTP ${res.status}`;
-      try {
-        const errBody = await res.json();
-        errMsg = errBody?.error || errMsg;
-      } catch {}
-      throw new Error(errMsg);
+    console.log(`[generateQuizQuestions] Got response from Gemini`);
+    
+    let jsonStr = response.text?.trim() || "[]";
+    
+    // Safety: remove markdown fences if present
+    if (jsonStr.startsWith("```json")) {
+      jsonStr = jsonStr.replace(/```json\n?/, "").replace(/```$/, "");
+    }
+    
+    const data = JSON.parse(jsonStr);
+    
+    if (!Array.isArray(data)) {
+      throw new Error("Geçersiz veri formatı: Dizi bekleniyor.");
     }
 
-    const data = await res.json();
-    console.log(`[generateQuizQuestions] Got ${Array.isArray(data) ? data.length : 0} questions`);
-
-    if (!Array.isArray(data)) throw new Error('Geçersiz veri formatı: Dizi bekleniyor');
+    console.log(`[generateQuizQuestions] Parsed ${data.length} questions`);
 
     return data.map((q: any) => ({
-      id: q.id || Math.random().toString(36).substr(2, 9),
-      text: q.text || '',
-      options: Array.isArray(q.options) ? q.options : ['A','B','C','D'],
+      id: Math.random().toString(36).substr(2, 9),
+      text: q.text || "",
+      options: Array.isArray(q.options) ? q.options : ["A", "B", "C", "D"],
       correctAnswer: typeof q.correctAnswer === 'number' ? q.correctAnswer : 0,
-      explanation: q.explanation || '',
+      explanation: q.explanation || "Açıklama bulunamadı.",
       difficulty: difficulty as any
     }));
   } catch (err) {
-    const errMsg = (err as any)?.message || String(err);
-    console.error(`[generateQuizQuestions] Error:`, errMsg);
-
-    if ((err as any).name === 'AbortError') {
-      throw new Error('Gemini isteği zaman aşımına uğradı (45+ saniye). Ağ bağlantınızı kontrol edin veya daha sonra tekrar deneyin.');
-    }
+    console.error("[generateQuizQuestions] Error:", err);
     throw err;
-  } finally {
-    clearTimeout(timeout);
   }
 };
