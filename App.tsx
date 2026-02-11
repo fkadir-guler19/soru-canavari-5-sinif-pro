@@ -12,7 +12,6 @@ import {
 } from './types';
 import { CURRICULUM, MONSTER_STAGES, LEVEL_THRESHOLD, MASCOT_THINKING, MASCOT_VICTORY } from './constants';
 import { generateQuizQuestions } from './services/geminiService';
-import { sendQuestionsToGoogleSheet } from './services/questionLogger';
 
 // --- Utility: Image Fallback Component ---
 const MascotImage: React.FC<{ src: string; alt: string; className?: string; fallbackIcon?: string }> = ({ src, alt, className, fallbackIcon = '🤖' }) => {
@@ -224,15 +223,6 @@ const App: React.FC = () => {
       );
       if (qs && qs.length > 0) {
         setQuestions(qs);
-
-        // Soru seti üretildiği anda Google Sheets'e arka planda gönder.
-        sendQuestionsToGoogleSheet(qs, {
-          subject: selectedSubject.type,
-          unitName: selectedUnit.name,
-          topics: topicsToQuery,
-          difficulty: quizConfig.difficulty,
-        });
-
         setTimer(selectedSubject.timePerQuestion * quizConfig.questionCount);
       } else {
         throw new Error("Soru bulunamadı.");
