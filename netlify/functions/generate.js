@@ -1,46 +1,53 @@
 import { GoogleGenAI, Type } from '@google/genai';
 
+import { GoogleGenAI, Type } from '@google/genai';
+
 export async function handler(event) {
+  const startTime = Date.now();
+  console.log('[generate] Handler started');
+
   try {
-    console.log('[generate] Request received');
-    
+    // Check API key first
     if (!process.env.API_KEY) {
-      console.error('[generate] CRITICAL: API_KEY is not set in environment variables!');
-      console.error('[generate] Please set API_KEY in Netlify Site Settings > Build & deploy > Environment');
-      return { 
-        statusCode: 500, 
-        body: JSON.stringify({ error: 'SUNUCU HATASI: API anahtarı Netlify ortam değişkenlerinde ayarlanmamış. Sistem yöneticisine başvurun.' }) 
+      console.error('[generate] CRITICAL: API_KEY is missing from environment!');
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: 'API_KEY çevre değişkeni ayarlanmamış.' })
       };
     }
 
-    const body = event.body ? JSON.parse(event.body) : {};
-    const { subject, unitName, topics, difficulty, count } = body;
+    console.log('[generate] API_KEY found, parsing request');
+    const { subject, unitName, topics, difficulty, count } = JSON.parse(event.body || '{}');
 
-    if (!subject || !unitName || !Array.isArray(topics) || !count) {
-      console.warn('[generate] Missing parameters:', { subject, unitName, topics: !!topics, count });
-      return { statusCode: 400, body: JSON.stringify({ error: 'Eksik parametreler.' }) };
+    // Validate inputs
+    if (!subject || !unitName || !topics || !count) {
+      console.warn('[generate] Missing required fields');
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Eksik parametreler: subject, unitName, topics, count gerekli.' })
+      };
     }
 
-    console.log(`[generate] Generating ${count} questions for ${subject}/${unitName}`);
+    console.log(`[generate] Request: ${subject}/${unitName}, ${count} questions`);
+    
+    // Create AI instance
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
+    // Simpler, faster prompt
+    const prompt = `You are a Turkish 5th grade teacher. Create ${count} multiple choice questions.
 
-    const prompt = `Sen uzman bir 5. Sınıf öğretmenisin.
-  Ders: ${subject}
-  Ünite: ${unitName}
-  Konular: [${topics.join(', ')}]
-  Zorluk: ${difficulty}
-  Soru Sayısı: TAM ${count} ADET.
+Subject: ${subject}
+Unit: ${unitName}
+Topics: ${Array.isArray(topics) ? topics.join(', ') : topics}
+Difficulty: ${difficulty}
 
-  GÖREV: MEB müfredatına %100 uyumlu, yeni nesil beceri temelli sorular hazırla.
-  
-  FORMAT VE KURALLAR:
-  1. Soru metni (text) içinde GENELDE kalın font kullanma.
-  2. Sadece vurgulanan (değildir, en önemlisi, her zaman vb.) kelimeleri **kalın** yaz.
-  3. Soru kökünü (kalıbını) her zaman **kalın** yaz.
-  4. Numaralı öncüller (I, II, III) varsa her birini yeni satıra yaz.
-  5. 4 Şık (A, B, C, D) hazırla.
-  6. "correctAnswer" index olarak (0=A, 1=B, 2=C, 3=D) belirtilmelidir.`;
+Requirements:
+- Each question must have 4 options (A, B, C, D)
+- Return ONLY valid JSON array with no markdown
+- Each question: {text, options: [A,B,C,D], correctAnswer: 0-3, explanation}`;
 
+    console.log('[generate] Calling Gemini API...');
+    
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -51,52 +58,66 @@ export async function handler(event) {
           items: {
             type: Type.OBJECT,
             properties: {
-              text: { type: Type.STRING, description: 'Soru metni.' },
-              options: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: 'Dört seçenek içeren dizi.',
-              },
-              correctAnswer: {
-                type: Type.INTEGER,
-                description: 'Doğru seçeneğin dizindeki indeksi (0-3).',
-              },
-              explanation: {
-                type: Type.STRING,
-                description: 'Sorunun pedagojik açıklaması.',
-              },
+              text: { type: Type.STRING },
+              options: { type: Type.ARRAY, items: { type: Type.STRING } },
+              correctAnswer: { type: Type.INTEGER },
+              explanation: { type: Type.STRING }
             },
-            required: ["text", "options", "correctAnswer", "explanation"],
-          },
-        },
+            required: ['text', 'options', 'correctAnswer', 'explanation']
+          }
+        }
       }
     });
 
     console.log('[generate] Gemini response received');
-    let jsonStr = response.text?.trim() || '[]';
-    if (jsonStr.startsWith('```json')) {
-      jsonStr = jsonStr.replace(/```json\n?/, '').replace(/```$/, '');
-    }
+    
+    // Parse response
+    let jsonStr = response.text || '[]';
+    jsonStr = jsonStr.trim().replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    
     const data = JSON.parse(jsonStr);
-    if (!Array.isArray(data)) throw new Error('Geçersiz veri formatı: Dizi bekleniyor.');
+    
+    if (!Array.isArray(data)) {
+      throw new Error('Response is not an array');
+    }
 
-    const out = data.map((q) => ({
+    const elapsed = Date.now() - startTime;
+    console.log(`[generate] Success: ${data.length} questions in ${elapsed}ms`);
+
+    // Return formatted response
+    const result = data.map((q) => ({
       id: Math.random().toString(36).substr(2, 9),
       text: q.text || '',
-      options: Array.isArray(q.options) ? q.options : ['A','B','C','D'],
-      correctAnswer: typeof q.correctAnswer === 'number' ? q.correctAnswer : 0,
-      explanation: q.explanation || 'Açıklama bulunamadı.',
+      options: Array.isArray(q.options) ? q.options : [],
+      correctAnswer: Number(q.correctAnswer) || 0,
+      explanation: q.explanation || '',
       difficulty: difficulty
     }));
 
-    console.log(`[generate] Successfully generated ${out.length} questions`);
-    return { statusCode: 200, body: JSON.stringify(out) };
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(result)
+    };
+
   } catch (err) {
-    console.error('[generate] Fatal error:', err);
-    const msg = err?.message || 'Bilinmeyen hata';
-    return { 
-      statusCode: 500, 
-      body: JSON.stringify({ error: `Gemini API hatası: ${msg}` }) 
+    const elapsed = Date.now() - startTime;
+    console.error(`[generate] Error after ${elapsed}ms:`, err?.message || err);
+    
+    // More specific error messages
+    let errorMsg = 'Gemini API isteği başarısız oldu.';
+    if (err?.message?.includes('API key')) {
+      errorMsg = 'Google API anahtarı geçersiz veya yetki sorunu.';
+    } else if (err?.message?.includes('timeout') || err?.message?.includes('Aborted')) {
+      errorMsg = 'İstek zaman aşımına uğradı. Daha sonra tekrar deneyin.';
+    } else if (err?.message?.includes('rate')) {
+      errorMsg = 'Çok fazla istek yapıldı. Bir dakika bekleyip tekrar deneyin.';
+    }
+
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: errorMsg })
     };
   }
 }
