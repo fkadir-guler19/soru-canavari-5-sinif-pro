@@ -8,7 +8,7 @@ export const generateQuizQuestions = async (
   count: number
 ): Promise<Question[]> => {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000);
+  const timeout = setTimeout(() => controller.abort(), 45000); // 45 saniye timeout
 
   try {
     const apiBase = (import.meta.env.VITE_API_BASE) || (import.meta.env.PROD ? '/.netlify/functions/generate' : '/api/generate');
@@ -51,7 +51,7 @@ export const generateQuizQuestions = async (
     console.error(`[generateQuizQuestions] Error:`, errMsg);
 
     if ((err as any).name === 'AbortError') {
-      throw new Error('Gemini isteği zaman aşımına uğradı (20+ saniye). Ağ bağlantınızı kontrol edin.');
+      throw new Error('Gemini isteği zaman aşımına uğradı (45+ saniye). Ağ bağlantınızı kontrol edin veya daha sonra tekrar deneyin.');
     }
     throw err;
   } finally {
