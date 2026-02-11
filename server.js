@@ -2,6 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import { GoogleGenAI, Type } from '@google/genai';
+import dotenv from 'dotenv';
+
+// Ortam değişkenlerini yükle
+dotenv.config({ path: '.env.local' });
 
 const app = express();
 const port = process.env.PORT || 5174;
@@ -9,7 +13,13 @@ const port = process.env.PORT || 5174;
 app.use(cors());
 app.use(bodyParser.json({ limit: '128kb' }));
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const apiKey = process.env.API_KEY || process.env.VITE_GEMINI_API_KEY;
+if (!apiKey) {
+  console.error('HATA: API_KEY veya VITE_GEMINI_API_KEY çevre değişkeni ayarlanmamış!');
+  process.exit(1);
+}
+
+const ai = new GoogleGenAI({ apiKey });
 
 app.post('/api/generate', async (req, res) => {
   const { subject, unitName, topics, difficulty, count } = req.body || {};
@@ -61,7 +71,20 @@ app.post('/api/generate', async (req, res) => {
     res.json(out);
   } catch (err) {
     console.error('Generation error:', err);
-    res.status(500).json({ error: 'Gemini isteği başarısız oldu.' });
+    
+    let errorMsg = 'Robotumuz soruları hazırlarken bir bağlantı hatası yaşadı. Lütfen tekrar dene!';
+    const errorDetail = err?.message || String(err);
+    console.error('Detay:', errorDetail);
+    
+    if (errorDetail?.includes('API key')) {
+      errorMsg = 'Google API anahtarı geçersiz veya yetki sorunu.';
+    } else if (errorDetail?.includes('timeout') || errorDetail?.includes('Aborted')) {
+      errorMsg = 'İstek zaman aşımına uğradı. Bir dakika bekleyip tekrar deneyin.';
+    } else if (errorDetail?.includes('rate')) {
+      errorMsg = 'Çok fazla istek yapıldı. Bir dakika bekleyip tekrar deneyin.';
+    }
+    
+    res.status(500).json({ error: errorMsg });
   }
 });
 

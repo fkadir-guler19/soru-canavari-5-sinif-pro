@@ -5,3 +5,4 @@
 [env.production]
   [env.production.vars]
     VITE_GEMINI_API_KEY = "AIzaSyAwKaA0PYqEe-Gd7erA-FhrEPXqav-OOZQ"
+    API_KEY = "AIzaSyAwKaA0PYqEe-Gd7erA-FhrEPXqav-OOZQ"

@@ -1,7 +1,5 @@
 import { GoogleGenAI, Type } from '@google/genai';
 
-import { GoogleGenAI, Type } from '@google/genai';
-
 export async function handler(event) {
   const startTime = Date.now();
   console.log('[generate] Handler started');

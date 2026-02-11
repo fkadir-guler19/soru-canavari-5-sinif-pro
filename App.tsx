@@ -11,7 +11,6 @@ import {
   HistoryItem
 } from './types';
 import { CURRICULUM, MONSTER_STAGES, LEVEL_THRESHOLD, MASCOT_THINKING, MASCOT_VICTORY } from './constants';
-import { generateQuizQuestions } from './services/geminiService';
 
 // --- Utility: Image Fallback Component ---
 const MascotImage: React.FC<{ src: string; alt: string; className?: string; fallbackIcon?: string }> = ({ src, alt, className, fallbackIcon = '🤖' }) => {
@@ -214,13 +213,25 @@ const App: React.FC = () => {
     
     try {
       const topicsToQuery = quizConfig.selectedTopics.length > 0 ? quizConfig.selectedTopics : selectedUnit.topics;
-      const qs = await generateQuizQuestions(
-        selectedSubject.type, 
-        selectedUnit.name, 
-        topicsToQuery, 
-        quizConfig.difficulty,
-        quizConfig.questionCount
-      );
+      
+      // Backend API'ye sor
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject: selectedSubject.type,
+          unitName: selectedUnit.name,
+          topics: topicsToQuery,
+          difficulty: quizConfig.difficulty,
+          count: quizConfig.questionCount
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API hatası: ${response.status} ${response.statusText}`);
+      }
+
+      const qs = await response.json();
       if (qs && qs.length > 0) {
         setQuestions(qs);
         setTimer(selectedSubject.timePerQuestion * quizConfig.questionCount);
@@ -230,7 +241,7 @@ const App: React.FC = () => {
     } catch (err) {
       console.error("Sorular yüklenirken hata:", err);
       const errMsg = (err as any)?.message || String(err) || "Bilinmeyen hata";
-      const fullMsg = `Soru hazırlama hatası: ${errMsg}. Ağ bağlantınızı kontrol edin ve tekrar deneyin.`;
+      const fullMsg = `Robotumuz soruları hazırlarken bir bağlantı hatası yaşadı. Lütfen tekrar dene! (${errMsg})`;
       setToast({ message: fullMsg, variant: 'error' });
       setView('quiz-config');
     } finally {
