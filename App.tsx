@@ -239,7 +239,9 @@ const App: React.FC = () => {
       }
     } catch (err) {
       console.error("Sorular yüklenirken hata:", err);
-      setToast({ message: "Robotumuz soruları hazırlarken bir bağlantı hatası yaşadı. Lütfen tekrar dene!", variant: 'error' });
+      const errMsg = (err as any)?.message || String(err) || "Bilinmeyen hata";
+      const fullMsg = `Soru hazırlama hatası: ${errMsg}. Ağ bağlantınızı kontrol edin ve tekrar deneyin.`;
+      setToast({ message: fullMsg, variant: 'error' });
       setView('quiz-config');
     } finally {
       setLoading(false);

@@ -1,4 +1,3 @@
-
 import { Question, SubjectType } from "../types";
 
 export const generateQuizQuestions = async (
@@ -9,25 +8,35 @@ export const generateQuizQuestions = async (
   count: number
 ): Promise<Question[]> => {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20000);
+  const timeout = setTimeout(() => controller.abort(), 25000);
 
   try {
     const apiBase = (import.meta.env.VITE_API_BASE) || (import.meta.env.PROD ? '/.netlify/functions/generate' : '/api/generate');
+    console.log(`[generateQuizQuestions] API URL: ${apiBase}, Mode: ${import.meta.env.PROD ? 'production' : 'dev'}`);
+
     const res = await fetch(apiBase, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subject, unitName, topics, difficulty, count }),
       signal: controller.signal
     });
+
     clearTimeout(timeout);
+    console.log(`[generateQuizQuestions] Response status: ${res.status}`);
 
     if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody?.error || 'Sunucu hatası');
+      let errMsg = `HTTP ${res.status}`;
+      try {
+        const errBody = await res.json();
+        errMsg = errBody?.error || errMsg;
+      } catch {}
+      throw new Error(errMsg);
     }
 
     const data = await res.json();
-    if (!Array.isArray(data)) throw new Error('Geçersiz veri formatı');
+    console.log(`[generateQuizQuestions] Got ${Array.isArray(data) ? data.length : 0} questions`);
+
+    if (!Array.isArray(data)) throw new Error('Geçersiz veri formatı: Dizi bekleniyor');
 
     return data.map((q: any) => ({
       id: q.id || Math.random().toString(36).substr(2, 9),
@@ -38,8 +47,11 @@ export const generateQuizQuestions = async (
       difficulty: difficulty as any
     }));
   } catch (err) {
+    const errMsg = (err as any)?.message || String(err);
+    console.error(`[generateQuizQuestions] Error:`, errMsg);
+
     if ((err as any).name === 'AbortError') {
-      throw new Error('Gemini isteği zaman aşımına uğradı.');
+      throw new Error('Gemini isteği zaman aşımına uğradı (20+ saniye). Ağ bağlantınızı kontrol edin.');
     }
     throw err;
   } finally {

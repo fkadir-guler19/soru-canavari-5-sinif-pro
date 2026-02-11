@@ -2,18 +2,26 @@ import { GoogleGenAI, Type } from '@google/genai';
 
 export async function handler(event) {
   try {
+    console.log('[generate] Request received');
+    
     if (!process.env.API_KEY) {
-      console.error('API_KEY not set in environment');
-      return { statusCode: 500, body: JSON.stringify({ error: 'Sunucu yapılandırma hatası: API anahtarı eksik.' }) };
+      console.error('[generate] CRITICAL: API_KEY is not set in environment variables!');
+      console.error('[generate] Please set API_KEY in Netlify Site Settings > Build & deploy > Environment');
+      return { 
+        statusCode: 500, 
+        body: JSON.stringify({ error: 'SUNUCU HATASI: API anahtarı Netlify ortam değişkenlerinde ayarlanmamış. Sistem yöneticisine başvurun.' }) 
+      };
     }
 
     const body = event.body ? JSON.parse(event.body) : {};
     const { subject, unitName, topics, difficulty, count } = body;
 
     if (!subject || !unitName || !Array.isArray(topics) || !count) {
+      console.warn('[generate] Missing parameters:', { subject, unitName, topics: !!topics, count });
       return { statusCode: 400, body: JSON.stringify({ error: 'Eksik parametreler.' }) };
     }
 
+    console.log(`[generate] Generating ${count} questions for ${subject}/${unitName}`);
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
     const prompt = `Sen uzman bir 5. Sınıf öğretmenisin.
@@ -64,6 +72,7 @@ export async function handler(event) {
       }
     });
 
+    console.log('[generate] Gemini response received');
     let jsonStr = response.text?.trim() || '[]';
     if (jsonStr.startsWith('```json')) {
       jsonStr = jsonStr.replace(/```json\n?/, '').replace(/```$/, '');
@@ -80,10 +89,14 @@ export async function handler(event) {
       difficulty: difficulty
     }));
 
+    console.log(`[generate] Successfully generated ${out.length} questions`);
     return { statusCode: 200, body: JSON.stringify(out) };
   } catch (err) {
-    console.error('Netlify Function Error:', err);
+    console.error('[generate] Fatal error:', err);
     const msg = err?.message || 'Bilinmeyen hata';
-    return { statusCode: 500, body: JSON.stringify({ error: `Gemini isteği başarısız: ${msg}` }) };
+    return { 
+      statusCode: 500, 
+      body: JSON.stringify({ error: `Gemini API hatası: ${msg}` }) 
+    };
   }
 }
