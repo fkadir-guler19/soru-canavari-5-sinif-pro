@@ -1,0 +1,7 @@
+{
+  "name": "Soru Canavarı 5. Sınıf Pro",
+  "description": "5. Sınıf MEB müfredatına %100 uyumlu, oyunlaştırılmış yeni nesil soru çözüm platformu. Canavarını besle, konularda uzmanlaş!",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

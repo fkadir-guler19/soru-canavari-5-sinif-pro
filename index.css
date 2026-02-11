@@ -1,0 +1,92 @@
+/* Global base styles (works alongside Tailwind CDN) */
+
+:root {
+  color-scheme: light;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+  font-family: 'Quicksand', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background-color: #f8faff;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1,
+h2,
+h3,
+.brand-font {
+  font-family: 'Fredoka', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+.monster-bounce {
+  animation: bounce-float 4s infinite ease-in-out;
+}
+
+@keyframes bounce-float {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-20px) scale(1.02);
+  }
+}
+
+.progress-bar-transition {
+  transition: width 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Custom scrollbar for better look */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Better mobile viewport behavior */
+@supports (height: 100dvh) {
+  .min-h-screen {
+    min-height: 100dvh;
+  }
+}
+
+/* Safer scroll when using sticky header/footer */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 80px;
+  scroll-padding-bottom: 88px;
+}
+
+/* Respect reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Better tap behavior on touch devices */
+button,
+[role="button"] {
+  touch-action: manipulation;
+}
+
